@@ -90,6 +90,7 @@ PLATFORMS=(
     # xcodebuild destination    XCFramework folder name
     "macos"                     "macos-$ARCH"
     "iOS Simulator"             "ios-$ARCH-simulator"
+    "iOS"                       "ios-$ARCH"
 )
 
 XCODEBUILD_LIBRARIES=""
@@ -115,6 +116,7 @@ for ((i = 0; i < ${#PLATFORMS[@]}; i += 2)); do
         -derivedDataPath $DERIVED_DATA_PATH \
         SKIP_INSTALL=NO \
         BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
+        GCC_GENERATE_DEBUGGING_SYMBOLS=NO \
         >/dev/null 2>&1
 
     for MODULE in ${MODULES[@]}; do
@@ -123,7 +125,7 @@ for ((i = 0; i < ${#PLATFORMS[@]}; i += 2)); do
     done
 
     # FIXME: figure out how to make xcodebuild output the .a file directly. For now, we package it ourselves.
-    ar -crs "$LIBRARY_PATH" $DERIVED_DATA_PATH/Build/Intermediates.noindex/swift-syntax.build/$CONFIGURATION*/*.build/Objects-normal/$ARCH/Binary/*.o
+    ar -crs "$LIBRARY_PATH" $DERIVED_DATA_PATH/Build/Products/$CONFIGURATION*/*.o
 done
 
 cd ..
@@ -142,7 +144,19 @@ xcodebuild -quiet -create-xcframework \
 for ((i = 1; i < ${#PLATFORMS[@]}; i += 2)); do
     XCFRAMEWORK_PLATFORM_NAME="${PLATFORMS[i]}"
     OUTPUTS_PATH="${PLATFORMS_OUTPUTS_PATH}/${XCFRAMEWORK_PLATFORM_NAME}"
-    cp $OUTPUTS_PATH/*.swiftinterface "$XCFRAMEWORK_PATH/$XCFRAMEWORK_PLATFORM_NAME"
+    
+        # XCFramework platform-specific path adjustments
+    if [[ "$XCFRAMEWORK_PLATFORM_NAME" == "ios-$ARCH-simulator" ]]; then
+        DEST_PATH="$XCFRAMEWORK_PATH/ios-arm64_x86_64-simulator"
+    elif [[ "$XCFRAMEWORK_PLATFORM_NAME" == "macos-$ARCH" ]]; then
+        DEST_PATH="$XCFRAMEWORK_PATH/macos-arm64_x86_64"
+    elif [[ "$XCFRAMEWORK_PLATFORM_NAME" == "ios-$ARCH" ]]; then
+        DEST_PATH="$XCFRAMEWORK_PATH/ios-arm64"
+    else
+        DEST_PATH="$XCFRAMEWORK_PATH/$XCFRAMEWORK_PLATFORM_NAME"
+    fi
+    
+    cp $OUTPUTS_PATH/*.swiftinterface "$DEST_PATH"
 done
 
 zip --quiet --recurse-paths $XCFRAMEWORK_NAME.zip $XCFRAMEWORK_NAME
